@@ -75,6 +75,40 @@ findes på `http://127.0.0.1:8000/docs`.
 API'en er uden autentifikation og bør kun eksponeres lokalt eller på et beskyttet
 netværk, indtil adgangskontrol er konfigureret.
 
+### Kør API'en med Docker
+
+Installer Docker Desktop, og sørg for, at Docker Engine kører. Opret `.env` ud
+fra `.env.example`, og indsæt dine egne MongoDB Atlas-oplysninger som beskrevet
+ovenfor. Byg og start derefter API'en fra projektmappen:
+
+```powershell
+docker compose up --build -d
+```
+
+Kontrollér status og logs:
+
+```powershell
+docker compose ps
+docker compose logs -f api
+```
+
+API'en er tilgængelig på `http://localhost:8000`, og dokumentationen findes på
+`http://localhost:8000/docs`. Stop containeren med:
+
+```powershell
+docker compose down
+```
+
+For at andre på samme lokale netværk kan tilgå API'en, find computerens IPv4-
+adresse med `ipconfig`, og del `http://<IPv4-adresse>:8000/docs`. Tillad
+eventuelt indgående TCP-trafik på port 8000 i Windows Firewall for det private
+netværk. MongoDB Atlas skal også tillade udgående forbindelse fra værtsmaskinens
+offentlige IP-adresse.
+
+Denne opsætning er til et betroet lokalt netværk, ikke til offentlig
+internetadgang. API'en har ingen autentifikation; viderestil ikke port 8000 fra
+routeren til internettet uden først at tilføje adgangskontrol og HTTPS.
+
 ## Eksport fra MongoDB
 
 Eksportér en collection til en JSON-fil:
