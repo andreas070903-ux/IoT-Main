@@ -103,6 +103,16 @@ class SensorApiTests(unittest.TestCase):
         )
         dashboard.load_measurements.clear()
 
+    def test_dashboard_rejects_non_http_api_urls(self) -> None:
+        with patch("dashboard.app.urlopen") as urlopen:
+            with self.assertRaises(RuntimeError):
+                dashboard.load_measurements("file:///measurements", 100)
+            with self.assertRaises(RuntimeError):
+                dashboard.load_turbine_controls("file:///measurements")
+
+        urlopen.assert_not_called()
+        dashboard.load_measurements.clear()
+
     def test_dashboard_reads_and_updates_turbine_control(self) -> None:
         controls_response = MagicMock()
         controls_response.read.return_value = json.dumps(
@@ -178,6 +188,20 @@ class SensorApiTests(unittest.TestCase):
             ["WT-001", "WT-002", "WT-003"],
         )
         self.assertTrue(all(record["Timestamp"] for record in sent_records))
+
+    def test_simulator_rejects_non_http_api_urls(self) -> None:
+        with (
+            patch("sensor_simulator.app.urlopen") as urlopen,
+            self.assertRaises(RuntimeError),
+        ):
+            sensor_simulator.simulate(
+                "file:///measurements",
+                interval=0,
+                repeat=False,
+                limit=0,
+            )
+
+        urlopen.assert_not_called()
 
     def test_simulator_skips_stopped_turbine_and_sends_for_others(self) -> None:
         sent_records: list[dict] = []

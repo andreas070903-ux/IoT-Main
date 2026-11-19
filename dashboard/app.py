@@ -127,9 +127,11 @@ st.markdown(
 @st.cache_data(ttl=5)
 def load_measurements(api_url: str, limit: int) -> list[dict[str, Any]]:
     """Fetch the newest measurements from the REST API."""
+    _require_http_url(api_url)
     url = f"{api_url.rstrip('/')}?{urlencode({'limit': limit})}"
     try:
-        with urlopen(url, timeout=10) as response:
+        # _require_http_url restricts urllib to HTTP(S).
+        with urlopen(url, timeout=10) as response:  # nosec B310
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -146,12 +148,20 @@ def load_measurements(api_url: str, limit: int) -> list[dict[str, Any]]:
     return data
 
 
-def _control_api_url(api_url: str, endpoint: str) -> str:
-    parsed = urlsplit(api_url)
-    if not parsed.scheme or not parsed.netloc:
+def _require_http_url(url: str) -> None:
+    try:
+        parsed = urlsplit(url)
+    except ValueError as exc:
         raise RuntimeError(
-            "API-adressen skal være en fuld URL, fx http://127.0.0.1:8000/measurements."
-        )
+            "API-adressen skal være en gyldig HTTP- eller HTTPS-URL."
+        ) from exc
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise RuntimeError("API-adressen skal være en gyldig HTTP- eller HTTPS-URL.")
+
+
+def _control_api_url(api_url: str, endpoint: str) -> str:
+    _require_http_url(api_url)
+    parsed = urlsplit(api_url)
     path = parsed.path.rstrip("/")
     path = path.removesuffix("/measurements")
     return urlunsplit((parsed.scheme, parsed.netloc, f"{path}{endpoint}", "", ""))
@@ -160,6 +170,7 @@ def _control_api_url(api_url: str, endpoint: str) -> str:
 def _request_control_api(
     url: str, method: str = "GET", payload: dict[str, str] | None = None
 ) -> Any:
+    _require_http_url(url)
     request_data = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = Request(
         url,
@@ -168,7 +179,8 @@ def _request_control_api(
         method=method,
     )
     try:
-        with urlopen(request, timeout=10) as response:
+        # _require_http_url restricts urllib to HTTP(S).
+        with urlopen(request, timeout=10) as response:  # nosec B310
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")

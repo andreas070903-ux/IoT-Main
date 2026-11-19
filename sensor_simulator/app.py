@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
@@ -27,11 +27,22 @@ def control_api_url(api_url: str, turbine_id: str) -> str:
     return f"{api_root}/turbines/{turbine_id}/control"
 
 
+def _require_http_url(url: str) -> None:
+    try:
+        parsed = urlsplit(url)
+    except ValueError as exc:
+        raise RuntimeError("API URL must be a valid HTTP or HTTPS URL.") from exc
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise RuntimeError("API URL must be a valid HTTP or HTTPS URL.")
+
+
 def turbine_is_running(api_url: str, turbine_id: str) -> bool:
     """Read the simulated control state before generating a measurement."""
     url = control_api_url(api_url, turbine_id)
+    _require_http_url(url)
     try:
-        with urlopen(url, timeout=10) as response:
+        # _require_http_url restricts urllib to HTTP(S).
+        with urlopen(url, timeout=10) as response:  # nosec B310
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -109,6 +120,7 @@ def simulate(
     limit: int,
 ) -> int:
     """Generate and send sensor measurements to the API at the requested interval."""
+    _require_http_url(api_url)
     sent = 0
     try:
         while True:
@@ -137,9 +149,7 @@ def simulate(
                     method="POST",
                 )
                 try:
-                    if urlparse(request.full_url).scheme not in ("http", "https"):
-                        raise ValueError("Kun http og https er tilladt")
-
+                    # _require_http_url restricts urllib to HTTP(S).
                     with urlopen(request, timeout=10) as response:  # nosec B310
                         if response.status != 201:
                             raise RuntimeError(
