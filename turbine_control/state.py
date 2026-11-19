@@ -2,7 +2,6 @@
 
 from threading import Lock
 
-
 TURBINE_IDS = ("WT-001", "WT-002", "WT-003")
 
 _running = {turbine_id: True for turbine_id in TURBINE_IDS}
