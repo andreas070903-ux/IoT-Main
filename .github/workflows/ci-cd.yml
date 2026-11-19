@@ -50,7 +50,7 @@ jobs:
           ruff format --check .
 
       - name: Kør tests
-        run: pytest --cov --cov-report=xml --cov-report=term-missing
+        run: python -m pytest --cov --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage-rapport
         if: matrix.python-version == '3.12'
