@@ -9,7 +9,6 @@ import api.main as api
 import dashboard.app as dashboard
 import sensor_simulator.app as sensor_simulator
 
-
 SAMPLE_MEASUREMENT = {
     "Timestamp": "2026-11-01T00:00:00Z",
     "Turbine_ID": "WT-001",
