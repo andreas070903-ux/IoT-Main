@@ -7,7 +7,7 @@ import os
 import random
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -23,8 +23,7 @@ def control_api_url(api_url: str, turbine_id: str) -> str:
     """Build the simulated turbine control endpoint from a measurements URL."""
     measurements_suffix = "/measurements"
     api_root = api_url.rstrip("/")
-    if api_root.endswith(measurements_suffix):
-        api_root = api_root[: -len(measurements_suffix)]
+    api_root = api_root.removesuffix(measurements_suffix)
     return f"{api_root}/turbines/{turbine_id}/control"
 
 
@@ -55,14 +54,12 @@ def generate_measurement(turbine_id: str) -> dict[str, Any]:
     """Generate one plausible wind turbine measurement."""
     wind_speed = round(random.uniform(1.47, 13.32), 2)
     expected_power = round(min(3000, (wind_speed / 12) ** 3 * 2000), 1)
-    power_output = round(
-        min(3000, expected_power * random.uniform(0.9, 1.05)), 1
-    )
+    power_output = round(min(3000, expected_power * random.uniform(0.9, 1.05)), 1)
     alarm = random.random() < 0.01
     warning = not alarm and random.random() < 0.02
 
     return {
-        "Timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "Timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "Turbine_ID": turbine_id,
         "Wind_Speed_m_s": wind_speed,
         "Wind_Direction_deg": round(random.uniform(131.3, 319.4), 1),
@@ -70,9 +67,7 @@ def generate_measurement(turbine_id: str) -> dict[str, Any]:
         "Rotor_Speed_RPM": round(wind_speed * random.uniform(0.9, 1.1), 2),
         "Power_Output_kW": power_output,
         "Expected_Power_kW": expected_power,
-        "Gearbox_Temp_C": round(
-            random.uniform(36.6, 48) + power_output / 3000 * 20, 1
-        ),
+        "Gearbox_Temp_C": round(random.uniform(36.6, 48) + power_output / 3000 * 20, 1),
         "Generator_Temp_C": round(
             random.uniform(41.2, 55) + power_output / 3000 * 18, 1
         ),
@@ -163,7 +158,9 @@ def simulate(
                         f"API returned HTTP {exc.code}: {detail}"
                     ) from exc
                 except URLError as exc:
-                    raise RuntimeError(f"Could not reach API at {api_url}: {exc.reason}") from exc
+                    raise RuntimeError(
+                        f"Could not reach API at {api_url}: {exc.reason}"
+                    ) from exc
 
                 sent += 1
                 print(

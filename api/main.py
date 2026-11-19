@@ -19,7 +19,6 @@ from turbine_control.state import (
     turbine_is_stopped,
 )
 
-
 load_dotenv()
 logger = logging.getLogger(__name__)
 app = FastAPI(title="IoT Sensor and Turbine Simulation API", version="1.0.0")
@@ -112,16 +111,8 @@ def list_measurements(
 ) -> list[dict]:
     """Return the newest stored measurements."""
     try:
-        documents = (
-            get_collection()
-            .find({})
-            .sort("Timestamp", -1)
-            .limit(limit)
-        )
-        return [
-            {"id": str(document.pop("_id")), **document}
-            for document in documents
-        ]
+        documents = get_collection().find({}).sort("Timestamp", -1).limit(limit)
+        return [{"id": str(document.pop("_id")), **document} for document in documents]
     except PyMongoError as exc:
         logger.exception("Could not read sensor measurements from MongoDB")
         raise HTTPException(
@@ -149,9 +140,7 @@ def get_one_turbine_control(turbine_id: str) -> dict[str, str]:
 
 
 @app.post("/turbines/{turbine_id}/control")
-def control_turbine(
-    turbine_id: str, command: TurbineControlCommand
-) -> dict[str, str]:
+def control_turbine(turbine_id: str, command: TurbineControlCommand) -> dict[str, str]:
     """Start or stop a turbine in the simulation."""
     try:
         return set_turbine_running(turbine_id, command.command == "start")

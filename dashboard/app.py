@@ -2,7 +2,7 @@
 
 import json
 import os
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -11,7 +11,6 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
@@ -151,17 +150,15 @@ def _control_api_url(api_url: str, endpoint: str) -> str:
     parsed = urlsplit(api_url)
     if not parsed.scheme or not parsed.netloc:
         raise RuntimeError(
-            "API-adressen skal være en fuld URL, "
-            "fx http://127.0.0.1:8000/measurements."
+            "API-adressen skal være en fuld URL, fx http://127.0.0.1:8000/measurements."
         )
     path = parsed.path.rstrip("/")
-    if path.endswith("/measurements"):
-        path = path[: -len("/measurements")]
+    path = path.removesuffix("/measurements")
     return urlunsplit((parsed.scheme, parsed.netloc, f"{path}{endpoint}", "", ""))
 
 
 def _request_control_api(
-    url: str, method: str = "GET", payload: Optional[dict[str, str]] = None
+    url: str, method: str = "GET", payload: dict[str, str] | None = None
 ) -> Any:
     request_data = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = Request(
@@ -202,9 +199,7 @@ def set_turbine_control(
     api_url: str, turbine_id: str, command: Literal["start", "stop"]
 ) -> dict[str, str]:
     """Send a simulated start/stop command to the API."""
-    url = _control_api_url(
-        api_url, f"/turbines/{quote(turbine_id, safe='')}/control"
-    )
+    url = _control_api_url(api_url, f"/turbines/{quote(turbine_id, safe='')}/control")
     data = _request_control_api(url, "POST", {"command": command})
     if (
         not isinstance(data, dict)
@@ -335,8 +330,7 @@ def main() -> None:
         start_time = pd.Timestamp(start_date, tz="UTC")
         end_time = pd.Timestamp(end_date, tz="UTC") + pd.Timedelta(days=1)
         filtered = filtered[
-            (filtered["Timestamp"] >= start_time)
-            & (filtered["Timestamp"] < end_time)
+            (filtered["Timestamp"] >= start_time) & (filtered["Timestamp"] < end_time)
         ]
 
     st.caption(
@@ -350,7 +344,9 @@ def main() -> None:
     latest = filtered.iloc[-1]
     alarm_count = int(filtered["Alarm_Flag"].fillna(False).astype(bool).sum())
     metric_columns = st.columns(4)
-    metric_columns[0].metric("Seneste vindhastighed", f"{latest['Wind_Speed_m_s']:.1f} m/s")
+    metric_columns[0].metric(
+        "Seneste vindhastighed", f"{latest['Wind_Speed_m_s']:.1f} m/s"
+    )
     metric_columns[1].metric("Seneste effekt", f"{latest['Power_Output_kW']:.1f} kW")
     metric_columns[2].metric("Alarmer i perioden", f"{alarm_count:,}")
     metric_columns[3].metric("Aktiv status", str(latest["Status"]))
@@ -374,9 +370,9 @@ def main() -> None:
             template="plotly_white",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="sans-serif", color="#64748b"),
+            font={"family": "sans-serif", "color": "#64748b"},
             legend_title_text="",
-            margin=dict(t=55, b=20, l=12, r=12),
+            margin={"t": 55, "b": 20, "l": 12, "r": 12},
         )
         st.plotly_chart(wind_chart, use_container_width=True)
     with right_chart:
@@ -396,9 +392,9 @@ def main() -> None:
             template="plotly_white",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="sans-serif", color="#64748b"),
+            font={"family": "sans-serif", "color": "#64748b"},
             legend_title_text="",
-            margin=dict(t=55, b=20, l=12, r=12),
+            margin={"t": 55, "b": 20, "l": 12, "r": 12},
         )
         st.plotly_chart(power_chart, use_container_width=True)
 
@@ -422,9 +418,9 @@ def main() -> None:
         template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="sans-serif", color="#64748b"),
+        font={"family": "sans-serif", "color": "#64748b"},
         legend_title_text="",
-        margin=dict(t=55, b=20, l=12, r=12),
+        margin={"t": 55, "b": 20, "l": 12, "r": 12},
     )
     st.plotly_chart(temperature_chart, use_container_width=True)
 

@@ -33,9 +33,7 @@ class SensorApiTests(unittest.TestCase):
     ) -> None:
         api.control_turbine("WT-001", api.TurbineControlCommand(command="stop"))
         try:
-            self.assertEqual(
-                api.get_one_turbine_control("WT-001")["status"], "STOPPED"
-            )
+            self.assertEqual(api.get_one_turbine_control("WT-001")["status"], "STOPPED")
             with self.assertRaises(HTTPException) as raised:
                 api.create_measurement(
                     api.SensorMeasurement.model_validate(SAMPLE_MEASUREMENT)
