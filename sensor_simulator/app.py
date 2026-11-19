@@ -142,7 +142,10 @@ def simulate(
                     method="POST",
                 )
                 try:
-                    with urlopen(request, timeout=10) as response:
+                    if urlparse(request.full_url).scheme not in ("http", "https"):
+                        raise ValueError("Kun http og https er tilladt")
+
+                    with urlopen(request, timeout=10) as response:  # nosec B310
                         if response.status != 201:
                             raise RuntimeError(
                                 f"API returned unexpected HTTP status {response.status}"
