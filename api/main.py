@@ -12,10 +12,17 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import PyMongoError
 
+from turbine_control.state import (
+    get_turbine_control,
+    list_turbine_controls,
+    set_turbine_running,
+    turbine_is_stopped,
+)
+
 
 load_dotenv()
 logger = logging.getLogger(__name__)
-app = FastAPI(title="IoT Sensor API", version="1.0.0")
+app = FastAPI(title="IoT Sensor and Turbine Simulation API", version="1.0.0")
 
 
 class SensorMeasurement(BaseModel):
@@ -37,6 +44,12 @@ class SensorMeasurement(BaseModel):
     Alarm_Flag: bool
     Status: Literal["OK", "WARNING", "ALARM", "CRITICAL", "OFFLINE"]
     Maintenance_Required: Literal["YES", "NO"]
+
+
+class TurbineControlCommand(BaseModel):
+    """A simulated start/stop command for a turbine."""
+
+    command: Literal["start", "stop"]
 
 
 @lru_cache(maxsize=4)
@@ -85,6 +98,11 @@ def health() -> dict[str, str]:
 @app.post("/measurements", status_code=status.HTTP_201_CREATED)
 def create_measurement(measurement: SensorMeasurement) -> dict:
     """Receive a reading from an IoT device and store it."""
+    if turbine_is_stopped(measurement.Turbine_ID):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{measurement.Turbine_ID} is stopped in the simulation.",
+        )
     return save_measurement(measurement)
 
 
@@ -109,4 +127,36 @@ def list_measurements(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="MongoDB operation failed; check the connection and database settings.",
+        ) from exc
+
+
+@app.get("/turbines/control")
+def get_all_turbine_controls() -> list[dict[str, str]]:
+    """Return control states for the simulated turbines."""
+    return list_turbine_controls()
+
+
+@app.get("/turbines/{turbine_id}/control")
+def get_one_turbine_control(turbine_id: str) -> dict[str, str]:
+    """Return the simulated control state for one turbine."""
+    try:
+        return get_turbine_control(turbine_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown simulated turbine: {turbine_id}",
+        ) from exc
+
+
+@app.post("/turbines/{turbine_id}/control")
+def control_turbine(
+    turbine_id: str, command: TurbineControlCommand
+) -> dict[str, str]:
+    """Start or stop a turbine in the simulation."""
+    try:
+        return set_turbine_running(turbine_id, command.command == "start")
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown simulated turbine: {turbine_id}",
         ) from exc

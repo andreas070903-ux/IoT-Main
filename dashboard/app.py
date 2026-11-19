@@ -2,10 +2,10 @@
 
 import json
 import os
-from typing import Any
+from typing import Any, Literal, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 import pandas as pd
 import plotly.express as px
@@ -147,6 +147,74 @@ def load_measurements(api_url: str, limit: int) -> list[dict[str, Any]]:
     return data
 
 
+def _control_api_url(api_url: str, endpoint: str) -> str:
+    parsed = urlsplit(api_url)
+    if not parsed.scheme or not parsed.netloc:
+        raise RuntimeError(
+            "API-adressen skal være en fuld URL, "
+            "fx http://127.0.0.1:8000/measurements."
+        )
+    path = parsed.path.rstrip("/")
+    if path.endswith("/measurements"):
+        path = path[: -len("/measurements")]
+    return urlunsplit((parsed.scheme, parsed.netloc, f"{path}{endpoint}", "", ""))
+
+
+def _request_control_api(
+    url: str, method: str = "GET", payload: Optional[dict[str, str]] = None
+) -> Any:
+    request_data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(
+        url,
+        data=request_data,
+        headers={"Content-Type": "application/json"} if request_data else {},
+        method=method,
+    )
+    try:
+        with urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"API'en svarede med HTTP {exc.code}: {detail}") from exc
+    except URLError as exc:
+        raise RuntimeError(
+            f"Kunne ikke forbinde til API'en på {url}: {exc.reason}"
+        ) from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("API'en returnerede ugyldige kontrol-data.") from exc
+    return data
+
+
+def load_turbine_controls(api_url: str) -> list[dict[str, str]]:
+    """Fetch the current simulated control state for all turbines."""
+    data = _request_control_api(_control_api_url(api_url, "/turbines/control"))
+    if not isinstance(data, list) or any(
+        not isinstance(item, dict)
+        or not isinstance(item.get("Turbine_ID"), str)
+        or item.get("status") not in {"RUNNING", "STOPPED"}
+        for item in data
+    ):
+        raise RuntimeError("API'en returnerede kontrol-data i et uventet format.")
+    return data
+
+
+def set_turbine_control(
+    api_url: str, turbine_id: str, command: Literal["start", "stop"]
+) -> dict[str, str]:
+    """Send a simulated start/stop command to the API."""
+    url = _control_api_url(
+        api_url, f"/turbines/{quote(turbine_id, safe='')}/control"
+    )
+    data = _request_control_api(url, "POST", {"command": command})
+    if (
+        not isinstance(data, dict)
+        or data.get("Turbine_ID") != turbine_id
+        or data.get("status") not in {"RUNNING", "STOPPED"}
+    ):
+        raise RuntimeError("API'en returnerede kontrol-data i et uventet format.")
+    return data
+
+
 def main() -> None:
     st.title("🌬️ Turbine Monitor")
     st.caption("Overblik over vindmøllemålinger gemt i MongoDB Atlas")
@@ -168,6 +236,42 @@ def main() -> None:
     if not api_url:
         st.error("Angiv API-adressen i sidepanelet.")
         st.stop()
+
+    st.subheader("Simuleret turbinestyring")
+    st.warning(
+        "Demo-funktion: styringen ændrer kun simulatorens tilstand. "
+        "Den sender ikke kommandoer til fysisk turbineudstyr."
+    )
+    try:
+        controls = load_turbine_controls(api_url)
+    except RuntimeError as exc:
+        st.error(f"Kunne ikke hente turbinernes tilstand: {exc}")
+        st.stop()
+
+    control_columns = st.columns(max(len(controls), 1))
+    for column, control in zip(control_columns, controls):
+        turbine_id = control["Turbine_ID"]
+        is_running = control["status"] == "RUNNING"
+        with column:
+            st.markdown(f"#### {turbine_id}")
+            st.markdown(
+                "🟢 **I drift (simulation)**"
+                if is_running
+                else "🔴 **Stoppet (simulation)**"
+            )
+            command = "stop" if is_running else "start"
+            button_label = "Stop turbine" if is_running else "Start turbine"
+            if st.button(
+                button_label,
+                key=f"{command}_{turbine_id}",
+                use_container_width=True,
+            ):
+                try:
+                    set_turbine_control(api_url, turbine_id, command)
+                except RuntimeError as exc:
+                    st.error(f"Kunne ikke ændre tilstanden for {turbine_id}: {exc}")
+                else:
+                    st.rerun()
 
     try:
         documents = load_measurements(api_url, row_limit)

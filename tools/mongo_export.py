@@ -45,7 +45,7 @@ def export_documents(
 
 
 def main() -> int:
-    load_dotenv(Path(__file__).with_name(".env"))
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     parser = argparse.ArgumentParser(
         description="Export documents from a MongoDB collection to Extended JSON."
     )

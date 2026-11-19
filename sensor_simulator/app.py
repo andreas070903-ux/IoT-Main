@@ -15,8 +15,39 @@ from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
 
+from turbine_control.state import TURBINE_IDS
 
-TURBINE_IDS = ("WT-001", "WT-002", "WT-003")
+
+def control_api_url(api_url: str, turbine_id: str) -> str:
+    """Build the simulated turbine control endpoint from a measurements URL."""
+    measurements_suffix = "/measurements"
+    api_root = api_url.rstrip("/")
+    if api_root.endswith(measurements_suffix):
+        api_root = api_root[: -len(measurements_suffix)]
+    return f"{api_root}/turbines/{turbine_id}/control"
+
+
+def turbine_is_running(api_url: str, turbine_id: str) -> bool:
+    """Read the simulated control state before generating a measurement."""
+    url = control_api_url(api_url, turbine_id)
+    try:
+        with urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"API returned HTTP {exc.code}: {detail}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Could not reach API at {url}: {exc.reason}") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("API returned invalid turbine control data.") from exc
+
+    if (
+        not isinstance(data, dict)
+        or data.get("Turbine_ID") != turbine_id
+        or data.get("status") not in {"RUNNING", "STOPPED"}
+    ):
+        raise RuntimeError("API returned turbine control data in an unexpected format.")
+    return data["status"] == "RUNNING"
 
 
 def generate_measurement(turbine_id: str) -> dict[str, Any]:
@@ -89,6 +120,18 @@ def simulate(
                 if limit and sent >= limit:
                     return sent
 
+                if not turbine_is_running(api_url, turbine_id):
+                    print(
+                        f"Skipping {turbine_id}: stopped in the simulation.",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    if (repeat or sent < len(TURBINE_IDS)) and (
+                        not limit or sent < limit
+                    ):
+                        time.sleep(interval)
+                    continue
+
                 record = generate_measurement(turbine_id)
 
                 request = Request(
@@ -105,6 +148,13 @@ def simulate(
                             )
                 except HTTPError as exc:
                     detail = exc.read().decode("utf-8", errors="replace")
+                    if exc.code == 409:
+                        print(
+                            f"Skipping {turbine_id}: stopped in the simulation.",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        continue
                     raise RuntimeError(
                         f"API returned HTTP {exc.code}: {detail}"
                     ) from exc
@@ -130,7 +180,7 @@ def simulate(
 
 
 def main() -> int:
-    load_dotenv(Path(__file__).with_name(".env"))
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     parser = argparse.ArgumentParser(
         description="Generate wind turbine sensor data and send it to the IoT REST API."
     )
