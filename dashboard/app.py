@@ -131,7 +131,7 @@ def load_measurements(api_url: str, limit: int) -> list[dict[str, Any]]:
     url = f"{api_url.rstrip('/')}?{urlencode({'limit': limit})}"
     try:
         # _require_http_url restricts urllib to HTTP(S).
-        with urlopen(url, timeout=30) as response:  # nosec B310
+        with urlopen(url, timeout=10) as response:  # nosec B310
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -235,9 +235,9 @@ def main() -> None:
         row_limit = st.select_slider(
             "Maks. seneste målinger",
             options=[500, 1000, 2500, 5000, 10000],
-            value=1000,
+            value=2500,
         )
-        if st.button("Opdater data", width='content'):
+        if st.button("Opdater data", use_container_width=True):
             load_measurements.clear()
 
     if not api_url:
@@ -271,7 +271,7 @@ def main() -> None:
             if st.button(
                 button_label,
                 key=f"{command}_{turbine_id}",
-                width='content',
+                use_container_width=True,
             ):
                 try:
                     set_turbine_control(api_url, turbine_id, command)
@@ -386,7 +386,7 @@ def main() -> None:
             legend_title_text="",
             margin={"t": 55, "b": 20, "l": 12, "r": 12},
         )
-        st.plotly_chart(wind_chart, width='content')
+        st.plotly_chart(wind_chart, use_container_width=True)
     with right_chart:
         power_chart = px.line(
             filtered,
@@ -408,7 +408,7 @@ def main() -> None:
             legend_title_text="",
             margin={"t": 55, "b": 20, "l": 12, "r": 12},
         )
-        st.plotly_chart(power_chart, width='content')
+        st.plotly_chart(power_chart, use_container_width=True)
 
     temperature_columns = ["Gearbox_Temp_C", "Generator_Temp_C"]
     temperature_chart = px.line(
@@ -434,7 +434,7 @@ def main() -> None:
         legend_title_text="",
         margin={"t": 55, "b": 20, "l": 12, "r": 12},
     )
-    st.plotly_chart(temperature_chart, width='content')
+    st.plotly_chart(temperature_chart, use_container_width=True)
 
     st.subheader("Seneste målinger")
     table_columns = [
@@ -450,7 +450,7 @@ def main() -> None:
         "Maintenance_Required",
     ]
     table = filtered.sort_values("Timestamp", ascending=False)[table_columns].head(100)
-    st.dataframe(table, width='content', hide_index=True)
+    st.dataframe(table, use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":

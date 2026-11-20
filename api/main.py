@@ -107,7 +107,7 @@ def create_measurement(measurement: SensorMeasurement) -> dict:
 
 @app.get("/measurements")
 def list_measurements(
-    limit: Annotated[int, Query(ge=1, le=10000)] = 1000,
+    limit: Annotated[int, Query(ge=1, le=10000)] = 100,
 ) -> list[dict]:
     """Return the newest stored measurements."""
     try:
